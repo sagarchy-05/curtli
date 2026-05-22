@@ -61,7 +61,7 @@ public class ShortenerService {
             }
 
             cachePut(alias, link.getLongUrl(), link.getExpiresAt());
-            return new ShortenResponse(alias, baseUrl + "/" + alias, link.getLongUrl());
+            return new ShortenResponse(link.getId(), alias, baseUrl + "/" + alias, link.getLongUrl());
         }
 
         // 2. Generated Code Flow (With Collision Retry Logic)
@@ -87,11 +87,14 @@ public class ShortenerService {
         }
 
         cachePut(link.getShortCode(), link.getLongUrl(), link.getExpiresAt());
-        return new ShortenResponse(link.getShortCode(), baseUrl + "/" + link.getShortCode(), link.getLongUrl());
+        return new ShortenResponse(link.getId(), link.getShortCode(), baseUrl + "/" + link.getShortCode(), link.getLongUrl());
     }
 
-    // 3. Bulk Shorten (The "All-or-Nothing" Pattern)
+    // 3. Bulk Shorten (now the only public entry point — handles 1..maxBulkSize URLs)
     public BulkShortenResponse bulkShorten(List<ShortenRequest> reqs) {
+        if (reqs == null || reqs.isEmpty()) {
+            throw new IllegalArgumentException("At least one URL is required");
+        }
         if (reqs.size() > maxBulkSize) {
             throw new IllegalArgumentException("Max " + maxBulkSize + " URLs per request");
         }

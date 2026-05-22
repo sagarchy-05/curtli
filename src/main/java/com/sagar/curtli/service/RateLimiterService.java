@@ -18,8 +18,6 @@ public class RateLimiterService {
     private DefaultRedisScript<List> script;
 
     @Value("${curtli.rate-limit.anonymous-per-minute}") private int anonRate;
-    @Value("${curtli.rate-limit.bulk-max}") private int bulkMax;
-    @Value("${curtli.rate-limit.bulk-minutes}") private int bulkMinutes;
 
     @PostConstruct
     public void init() {
@@ -28,15 +26,14 @@ public class RateLimiterService {
         script.setResultType(List.class);
     }
 
-    // For single /shorten requests
+    /**
+     * One token per request. With the new unified /api/shorten endpoint a
+     * single request can carry up to BULK_BATCH_SIZE URLs, but they still
+     * cost one token — keeps the limiter simple and the 10/min default
+     * generous enough for any realistic interactive use.
+     */
     public boolean tryAcquire(String identityKey) {
         return executeLua("rl:" + identityKey, anonRate, anonRate / 60.0);
-    }
-
-    // For /bulk-shorten requests
-    public boolean tryAcquireBulk(String identityKey) {
-        double refillPerSec = bulkMax / (bulkMinutes * 60.0);
-        return executeLua("rl:bulk:" + identityKey, bulkMax, refillPerSec);
     }
 
     private boolean executeLua(String key, int maxTokens, double refillPerSec) {

@@ -89,10 +89,11 @@ A separate lifetime counter on the `links` table gets the same `+= N` treatment 
 
 ## What else it does
 
-- **Custom aliases** — `POST /api/shorten` accepts an optional `customAlias` (`[a-zA-Z0-9_-]{3,16}`). Unique-constraint race is handled by attempting the insert and catching the violation, not pre-checking.
-- **Bulk shortening** — `POST /api/bulk-shorten` accepts an array, runs each through the same path, and returns a partial-success body so one bad URL doesn't fail the whole batch.
-- **Expiry** — `expiresInDays` is validated `1..3650`, cache TTL is bounded by the link's own expiry so a cached entry never outlives the link itself.
-- **Rate limiting** — Redis-backed token bucket implemented in a single atomic Lua script. Separate buckets for single (`10/min/IP`) and bulk (env-configurable, default 1 per 5 minutes per IP).
+- **Batch shortening** — `POST /api/shorten` takes an array of 1–20 URLs and returns a partial-success body (`successful`/`failed` arrays) so one bad URL doesn't sink the whole batch. The frontend always sends an array, even for a single link.
+- **Custom aliases** — each item can carry an optional `customAlias` (`[a-zA-Z0-9_-]{3,16}`). The unique-constraint race is handled by attempting the insert and catching the violation — no pre-check, no TOCTOU window.
+- **Per-link stats** — `GET /api/links/{id}/stats` returns the 24 most recent hourly buckets plus the lifetime click count. The endpoint takes the numeric `id` (returned in `ShortenResponse` and stored client-side in localStorage), so the public `shortCode` isn't a stats key. The frontend's "Your links" section opens a modal with a bar chart when you click a saved link.
+- **Expiry** — `expiresInDays` is validated `1..3650`; cache TTL is bounded by the link's own expiry so a cached entry never outlives the link itself.
+- **Rate limiting** — Redis-backed token bucket implemented in a single atomic Lua script. One bucket (`10/min/IP`) covers the shorten endpoint regardless of how many URLs the request carries.
 - **Random Base62 short codes** — 7 chars from `SecureRandom`, 62⁷ ≈ 3.5 trillion possible values. Codes are unguessable and the keyspace doesn't visibly leak how many links exist.
 
 ## Quick start
@@ -106,25 +107,45 @@ Open **http://localhost:8080/**. Postgres, Redis, and the app come up together; 
 
 ## API
 
-| Method | Path                  | Notes |
-|--------|-----------------------|-------|
-| `POST` | `/api/shorten`        | Single shorten. Returns `ShortenResponse`. |
-| `POST` | `/api/bulk-shorten`   | Up to 20 URLs. Partial-success response. |
-| `GET`  | `/{shortCode}`        | 302 to the long URL (or 404 / 410). |
-| `GET`  | `/swagger-ui.html`    | Interactive API docs. |
-| `GET`  | `/actuator/prometheus`| Metrics. |
+| Method | Path                       | Notes |
+|--------|----------------------------|-------|
+| `POST` | `/api/shorten`             | Takes an array of 1–20 URLs. Partial-success response. |
+| `GET`  | `/api/links/{id}/stats`    | 24-hour hourly click breakdown for a link, looked up by numeric id. |
+| `GET`  | `/{shortCode}`             | 302 to the long URL (or 404 / 410). |
+| `GET`  | `/swagger-ui.html`         | Interactive API docs. |
+| `GET`  | `/actuator/prometheus`     | Metrics. |
 
-`ShortenRequest`:
+Request body for `POST /api/shorten`:
+
+```json
+[
+  {
+    "longUrl": "https://example.com/something/long",
+    "customAlias": "launch-2026",
+    "expiresInDays": 30
+  }
+]
+```
+
+`customAlias` and `expiresInDays` are optional. `expiresInDays` is `null` (or omitted) for permanent links.
+
+Response shape (single item shown for brevity — the array is always returned in `successful` or `failed`):
 
 ```json
 {
-  "longUrl": "https://example.com/something/long",
-  "customAlias": "launch-2026",
-  "expiresInDays": 30
+  "successful": [
+    {
+      "id": 42,
+      "shortCode": "aB3xK9p",
+      "shortUrl": "https://curtli.com/aB3xK9p",
+      "longUrl": "https://example.com/something/long"
+    }
+  ],
+  "failed": []
 }
 ```
 
-`customAlias` and `expiresInDays` are optional. `expiresInDays` is `null` for permanent links.
+Hold onto `id` client-side — that's the key to `GET /api/links/{id}/stats`.
 
 ## Stack
 

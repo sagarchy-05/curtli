@@ -34,11 +34,9 @@ public class RateLimitFilter implements Filter {
                 ip = ip.split(",")[0].trim();
             }
 
-            // Route to the appropriate rate limit bucket based on the URI
+            // Single write endpoint now; /api/bulk-shorten is gone.
             if (uri.equals("/api/shorten") || uri.startsWith("/api/shorten/")) {
                 isAllowed = limiter.tryAcquire(ip);
-            } else if (uri.equals("/api/bulk-shorten") || uri.startsWith("/api/bulk-shorten/")) {
-                isAllowed = limiter.tryAcquireBulk(ip);
             }
 
             if (!isAllowed) {

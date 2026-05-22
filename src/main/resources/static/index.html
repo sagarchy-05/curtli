@@ -165,7 +165,7 @@
   <template id="tpl-history-item">
     <div class="history-item">
       <div class="history-main">
-        <a class="history-short" data-short target="_blank" rel="noopener"></a>
+        <button type="button" class="history-short" data-short aria-label="View stats"></button>
         <p class="history-long" data-long></p>
         <p class="history-meta" data-meta></p>
       </div>
@@ -176,14 +176,55 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
         </button>
-        <button type="button" class="btn-icon btn-remove-history" data-remove aria-label="Remove from history">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-        </button>
       </div>
     </div>
   </template>
+
+  <template id="tpl-chart-row">
+    <div class="chart-row">
+      <span class="chart-time" data-time></span>
+      <div class="chart-bar-wrap">
+        <div class="chart-bar" data-bar></div>
+      </div>
+      <span class="chart-count" data-count></span>
+    </div>
+  </template>
+
+  <!-- ===== Stats modal ===== -->
+  <div id="stats-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-card" role="document">
+      <button type="button" class="modal-close" data-modal-close aria-label="Close stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+
+      <header class="modal-header">
+        <h3 class="modal-title" id="modal-title" data-modal-code></h3>
+        <p class="modal-long" data-modal-long></p>
+      </header>
+
+      <div class="modal-summary">
+        <div class="stat-card">
+          <span class="stat-value" data-modal-total>—</span>
+          <span class="stat-label">total clicks</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" data-modal-active>—</span>
+          <span class="stat-label">active hours</span>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h4 class="modal-section-title">Last 24 hours</h4>
+        <div class="modal-chart" data-modal-chart></div>
+        <p class="modal-loading" data-modal-loading>Loading…</p>
+        <p class="modal-empty" data-modal-empty hidden>No clicks yet — share the link!</p>
+        <p class="modal-error" data-modal-error hidden></p>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

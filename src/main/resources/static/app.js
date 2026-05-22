@@ -1,7 +1,8 @@
 /* ============================================================
    curtli — landing page logic
-   Vanilla JS, no build step. Talks to /api/shorten and
-   /api/bulk-shorten. Persists "Your links" in localStorage.
+   Vanilla JS, no build step. Talks to /api/shorten (always as
+   an array) and /api/links/{id}/stats. Persists "Your links" in
+   localStorage; clicking a saved short link opens a stats modal.
    ============================================================ */
 
 (() => {
@@ -26,17 +27,37 @@
   const $historyEmpty  = document.getElementById('history-empty');
   const $toast         = document.getElementById('toast');
 
+  // Modal
+  const $modal        = document.getElementById('stats-modal');
+  const $modalCode    = $modal.querySelector('[data-modal-code]');
+  const $modalLong    = $modal.querySelector('[data-modal-long]');
+  const $modalTotal   = $modal.querySelector('[data-modal-total]');
+  const $modalActive  = $modal.querySelector('[data-modal-active]');
+  const $modalChart   = $modal.querySelector('[data-modal-chart]');
+  const $modalEmpty   = $modal.querySelector('[data-modal-empty]');
+  const $modalLoading = $modal.querySelector('[data-modal-loading]');
+  const $modalError   = $modal.querySelector('[data-modal-error]');
+
   const tplRow      = document.getElementById('tpl-row');
   const tplSuccess  = document.getElementById('tpl-result-success');
   const tplFailure  = document.getElementById('tpl-result-failure');
   const tplHistory  = document.getElementById('tpl-history-item');
+  const tplChartRow = document.getElementById('tpl-chart-row');
 
   // ----- Init ----------------------------------------------------
-  addRow();                  // start with one blank row
+  addRow();
   renderHistory();
 
   $form.addEventListener('submit', onSubmit);
   $addRow.addEventListener('click', () => addRow());
+
+  // Modal close handlers (X button + backdrop click + ESC)
+  $modal.querySelectorAll('[data-modal-close]').forEach(el =>
+    el.addEventListener('click', closeModal)
+  );
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$modal.classList.contains('hidden')) closeModal();
+  });
 
   // ----- Row management -----------------------------------------
 
@@ -62,9 +83,7 @@
     });
 
     // Focus the URL input of the just-added row (skip the first auto-add)
-    if (count > 0) {
-      node.querySelector('.input-url').focus();
-    }
+    if (count > 0) node.querySelector('.input-url').focus();
 
     updateRowChrome();
   }
@@ -83,8 +102,7 @@
     const count = rows.length;
 
     rows.forEach(r => {
-      const $remove = r.querySelector('.row-remove');
-      $remove.disabled = count <= 1;
+      r.querySelector('.row-remove').disabled = count <= 1;
     });
 
     $rowCounter.textContent = `${count} / ${MAX_ROWS}`;
@@ -99,7 +117,6 @@
     const isPermanent = rowEl.querySelector('.check-input').checked;
     const daysVal     = rowEl.querySelector('.input-days').value.trim();
 
-    // Permanent always wins. Empty days = no expiry (null).
     let expiresInDays = null;
     if (!isPermanent && daysVal !== '') {
       expiresInDays = Number(daysVal);  // could be NaN if input is garbage
@@ -178,7 +195,6 @@
       return;
     }
 
-    // Validate client-side first
     let hasError = false;
     for (const row of nonEmpty) {
       const err = validateRow(row);
@@ -198,14 +214,14 @@
         expiresInDays: r.expiresInDays,
       }));
 
-      const { successful, failed } = payload.length === 1
-        ? await shortenSingle(payload[0])
-        : await shortenBulk(payload);
+      // Always-array endpoint — single or bulk are the same call now.
+      const { successful, failed } = await shortenAll(payload);
 
       renderResults(successful, failed, nonEmpty);
 
-      // Persist successes to history
+      // Persist successes to history (now including id for stats lookup)
       successful.forEach(s => addToHistory({
+        id:        s.id,
         shortCode: s.shortCode,
         shortUrl:  s.shortUrl,
         longUrl:   s.longUrl,
@@ -230,7 +246,6 @@
       });
       updateRowChrome();
 
-      // Smooth-scroll to results
       requestAnimationFrame(() => {
         $resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -244,28 +259,23 @@
 
   // ----- API calls ----------------------------------------------
 
-  async function shortenSingle(body) {
+  async function shortenAll(bodyArray) {
     const res = await fetch('/api/shorten', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw await buildHttpError(res);
-    const data = await res.json();
-    return { successful: [data], failed: [] };
-  }
-
-  async function shortenBulk(bodyArray) {
-    const res = await fetch('/api/bulk-shorten', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bodyArray),
     });
-    // bulk returns 200 (partial/full success) or 400 (all failed) — both with JSON body
+    // 200 = at least one success; 400 = all failed (both have a JSON body)
     if (res.status === 200 || res.status === 400) {
       return await res.json();
     }
     throw await buildHttpError(res);
+  }
+
+  async function fetchStats(id) {
+    const res = await fetch(`/api/links/${id}/stats`);
+    if (!res.ok) throw await buildHttpError(res);
+    return await res.json();
   }
 
   async function buildHttpError(res) {
@@ -280,7 +290,6 @@
 
   function handleSubmitError(err, rows) {
     if (!err.status) {
-      // Network-level failure
       showBanner('Could not reach the server. Check your connection and try again.');
       return;
     }
@@ -290,10 +299,9 @@
       return;
     }
     if (err.status === 400 && rows.length === 1) {
-      // Pick the field to highlight based on what the server complained about.
       const msg = err.message || 'Invalid request.';
       let target = 'url';
-      if (/alias/i.test(msg))                   target = 'alias';
+      if (/alias/i.test(msg))                     target = 'alias';
       else if (/expires?|days|expiry/i.test(msg)) target = 'days';
       setRowError(rows[0].rowEl, msg, target);
       return;
@@ -301,7 +309,7 @@
     showBanner(err.message || `Unexpected error (${err.status}).`);
   }
 
-  // ----- Rendering ----------------------------------------------
+  // ----- Result rendering ---------------------------------------
 
   function renderResults(successful, failed, originalRows) {
     $results.innerHTML = '';
@@ -376,11 +384,6 @@
     saveHistory(filtered.slice(0, HISTORY_LIMIT));
   }
 
-  function removeFromHistory(shortCode) {
-    const list = loadHistory().filter(x => x.shortCode !== shortCode);
-    saveHistory(list);
-  }
-
   function renderHistory() {
     const list = loadHistory();
     $history.innerHTML = '';
@@ -398,25 +401,120 @@
       const $long  = node.querySelector('[data-long]');
       const $meta  = node.querySelector('[data-meta]');
       const $copy  = node.querySelector('[data-copy]');
-      const $remove= node.querySelector('[data-remove]');
 
       $short.textContent = stripProtocol(item.shortUrl);
-      $short.href = item.shortUrl;
-      $long.textContent = item.longUrl;
-      $meta.textContent = formatRelative(item.createdAt);
+      $long.textContent  = item.longUrl;
+      $meta.textContent  = formatRelative(item.createdAt);
 
-      $copy.addEventListener('click', () => copyToClipboard(item.shortUrl, $copy));
-      $remove.addEventListener('click', () => {
-        node.classList.add('removing');
-        node.addEventListener('animationend', () => {
-          removeFromHistory(item.shortCode);
-          renderHistory();
-        }, { once: true });
-      });
+      // Clicking the short URL opens the stats modal (modal-only behavior).
+      // To actually visit the link, the user copies and pastes.
+      $short.addEventListener('click', () => openStatsModal(item));
+      $copy.addEventListener('click',  () => copyToClipboard(item.shortUrl, $copy));
 
       node.style.animationDelay = `${Math.min(i, 10) * 35}ms`;
       $history.appendChild(node);
     });
+  }
+
+  // ----- Stats modal --------------------------------------------
+
+  async function openStatsModal(item) {
+    if (!item.id) {
+      // Legacy history entry created before the id field existed.
+      showToast('Stats unavailable for older links');
+      return;
+    }
+
+    // Reset modal state
+    $modalCode.textContent   = item.shortCode;
+    $modalLong.textContent   = item.longUrl;
+    $modalTotal.textContent  = '—';
+    $modalActive.textContent = '—';
+    $modalChart.innerHTML    = '';
+    $modalEmpty.hidden       = true;
+    $modalError.hidden       = true;
+    $modalLoading.hidden     = false;
+
+    showModal();
+
+    try {
+      const stats = await fetchStats(item.id);
+      renderStats(stats);
+    } catch (err) {
+      $modalLoading.hidden = true;
+      $modalError.hidden   = false;
+      $modalError.textContent = err.status === 404
+        ? 'This link no longer exists.'
+        : (err.message || 'Could not load stats.');
+    }
+  }
+
+  function renderStats(stats) {
+    $modalLoading.hidden    = true;
+    $modalTotal.textContent = formatNumber(stats.totalClicks);
+
+    const buckets     = buildLast24h(stats.hourly);
+    const activeHours = buckets.filter(b => b.clicks > 0).length;
+    $modalActive.textContent = String(activeHours);
+
+    if (stats.totalClicks === 0) {
+      $modalEmpty.hidden = false;
+      return;
+    }
+
+    const max = Math.max(...buckets.map(b => b.clicks), 1);
+    $modalChart.innerHTML = '';
+
+    for (const b of buckets) {
+      const row = tplChartRow.content.firstElementChild.cloneNode(true);
+      row.querySelector('[data-time]').textContent  = formatHour(b.time);
+      row.querySelector('[data-count]').textContent = formatNumber(b.clicks);
+      const $bar = row.querySelector('[data-bar]');
+      // Trigger the width transition on the next frame so it animates from 0
+      requestAnimationFrame(() => {
+        $bar.style.width = ((b.clicks / max) * 100).toFixed(1) + '%';
+      });
+      $modalChart.appendChild(row);
+    }
+  }
+
+  function buildLast24h(hourly) {
+    // Map server-returned (hour ISO string) → click count, keyed by epoch ms
+    const map = new Map();
+    for (const h of hourly || []) {
+      const ts = new Date(h.hour).getTime();
+      if (!isNaN(ts)) map.set(ts, h.clicks);
+    }
+
+    // Truncate "now" to the current hour
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+
+    const buckets = [];
+    for (let i = 23; i >= 0; i--) {
+      const t = now.getTime() - i * 3600 * 1000;
+      buckets.push({
+        time: new Date(t),
+        clicks: map.get(t) || 0,
+      });
+    }
+    return buckets;  // oldest → newest, left-to-right
+  }
+
+  function showModal() {
+    $modal.classList.remove('hidden');
+    // Preserve scrollbar width so the page doesn't shift when we lock scroll
+    const sbw = window.innerWidth - document.documentElement.clientWidth;
+    if (sbw > 0) document.documentElement.style.setProperty('--scrollbar-w', sbw + 'px');
+    document.body.classList.add('modal-open');
+    requestAnimationFrame(() => $modal.classList.add('show'));
+  }
+
+  function closeModal() {
+    $modal.classList.remove('show');
+    document.body.classList.remove('modal-open');
+    document.documentElement.style.removeProperty('--scrollbar-w');
+    setTimeout(() => $modal.classList.add('hidden'), 300);
   }
 
   // ----- UI helpers ---------------------------------------------
@@ -454,7 +552,6 @@
     try {
       await navigator.clipboard.writeText(text);
       btnEl.classList.add('copied');
-      // Swap the icon path to a check briefly
       const $svg = btnEl.querySelector('svg');
       const originalHTML = $svg.innerHTML;
       $svg.innerHTML = '<path d="M20 6L9 17l-5-5" />';
@@ -464,7 +561,7 @@
         btnEl.classList.remove('copied');
       }, 1200);
     } catch (_) {
-      // Fallback for non-secure contexts (some older browsers)
+      // Fallback for non-secure contexts
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';
@@ -483,15 +580,22 @@
   function formatRelative(ts) {
     const diff = Date.now() - ts;
     const sec = Math.floor(diff / 1000);
-    if (sec < 60)  return 'just now';
+    if (sec < 60) return 'just now';
     const min = Math.floor(sec / 60);
-    if (min < 60)  return `${min} min ago`;
+    if (min < 60) return `${min} min ago`;
     const hr = Math.floor(min / 60);
-    if (hr < 24)   return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+    if (hr < 24)  return `${hr} hour${hr === 1 ? '' : 's'} ago`;
     const day = Math.floor(hr / 24);
-    if (day < 30)  return `${day} day${day === 1 ? '' : 's'} ago`;
-    const d = new Date(ts);
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+    return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function formatHour(date) {
+    return String(date.getHours()).padStart(2, '0') + ':00';
+  }
+
+  function formatNumber(n) {
+    return Number(n).toLocaleString();
   }
 
 })();

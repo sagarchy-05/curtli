@@ -16,11 +16,9 @@ public class RateLimitConfig {
         // Inject the service into the filter manually
         registrationBean.setFilter(new RateLimitFilter(rateLimiterService));
 
-        // Explicitly map all exact endpoints and their sub-paths
-        registrationBean.addUrlPatterns(
-                "/api/shorten",
-                "/api/bulk-shorten"
-        );
+        // Rate-limit the single write endpoint. (/api/bulk-shorten was removed —
+        // /api/shorten now takes an array.)
+        registrationBean.addUrlPatterns("/api/shorten");
 
         // Set it to run early in the filter chain
         registrationBean.setOrder(1);

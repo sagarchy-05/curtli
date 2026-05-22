@@ -51,8 +51,6 @@ curtli:
   rate-limit:
     anonymous-per-minute: 10
     authenticated-per-minute: 100
-    bulk-max: ${RATE_LIMIT_BULK_MAX:1}
-    bulk-minutes: ${RATE_LIMIT_BULK_MINUTES:5}
   bulk-batch-size: ${BULK_BATCH_SIZE:20}
   click-stream:
     name: "click_events"

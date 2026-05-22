@@ -5,10 +5,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.stream.*;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -30,8 +32,21 @@ public class ClickEventConsumer {
     @PostConstruct
     public void initGroup() {
         try {
-            redis.opsForStream().createGroup(streamName, ReadOffset.from("0"), group);
-        } catch (Exception ignored) { /* group already exists */ }
+            // Use MKSTREAM so this also creates the stream if it doesn't exist yet
+            // (fresh ElastiCache, fresh local Redis). The high-level opsForStream()
+            // .createGroup() doesn't expose this flag, so we drop to the connection
+            // callback.
+            redis.execute((RedisCallback<String>) connection ->
+                    connection.streamCommands().xGroupCreate(
+                            streamName.getBytes(StandardCharsets.UTF_8),
+                            group,
+                            ReadOffset.from("0"),
+                            true
+                    )
+            );
+        } catch (Exception ignored) {
+            // BUSYGROUP if the group already exists on subsequent boots. Safe to ignore.
+        }
     }
 
     @Scheduled(fixedDelayString = "${curtli.click-stream.poll-delay:1000}")

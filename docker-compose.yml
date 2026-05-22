@@ -65,9 +65,7 @@ services:
       STREAM_BATCH_SIZE: ${STREAM_BATCH_SIZE}
       STREAM_BLOCK_MILLIS: ${STREAM_BLOCK_MILLIS}
 
-      # Bulk Shortening Rate limiting
-      RATE_LIMIT_BULK_MAX: ${RATE_LIMIT_BULK_MAX}
-      RATE_LIMIT_BULK_MINUTES: ${RATE_LIMIT_BULK_MINUTES}
+      # Max URLs per /api/shorten request
       BULK_BATCH_SIZE: ${BULK_BATCH_SIZE}
 
       # HikariCP (Postgres) connection pool

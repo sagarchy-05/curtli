@@ -620,6 +620,194 @@ h1, h2, h3, p { margin: 0; }
   transform: translateX(-50%) translateY(0);
 }
 
+/* ===== Stats modal ===== */
+body.modal-open {
+  overflow: hidden;
+  /* preserves scrollbar width so layout doesn't shift */
+  padding-right: var(--scrollbar-w, 0);
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+}
+.modal.show { pointer-events: auto; }
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  transition: opacity 280ms var(--ease-in-out);
+}
+.modal.show .modal-backdrop { opacity: 1; }
+
+.modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px 24px;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+  transition: opacity 300ms var(--ease-out), transform 360ms var(--ease-out);
+}
+.modal.show .modal-card { opacity: 1; transform: translateY(0) scale(1); }
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: color 200ms var(--ease-in-out), background 200ms var(--ease-in-out);
+}
+.modal-close:hover { color: var(--text); background: var(--surface-2); }
+.modal-close svg { width: 16px; height: 16px; }
+
+.modal-header { margin: 0 24px 20px 0; }
+.modal-title {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.01em;
+  word-break: break-all;
+}
+.modal-long {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.modal-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.modal-section {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.modal-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 14px;
+}
+.modal-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+.chart-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-soft);
+  width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.chart-bar-wrap {
+  flex: 1;
+  height: 14px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.chart-bar {
+  height: 100%;
+  background: linear-gradient(to right, var(--primary-700), var(--primary));
+  border-radius: 4px;
+  width: 0;
+  transition: width 600ms var(--ease-out);
+}
+.chart-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: right;
+}
+
+.modal-loading, .modal-empty, .modal-error {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-soft);
+  padding: 24px 0;
+}
+.modal-error { color: var(--danger); }
+
+/* ===== history-short was an <a>, now a <button> — reset native styles ===== */
+.history-short {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.history-short:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ===== Hidden utility ===== */
 .hidden { display: none !important; }
 
@@ -630,6 +818,15 @@ h1, h2, h3, p { margin: 0; }
   .main { gap: 36px; }
   .card { padding: 18px; }
   .row-inputs { grid-template-columns: 1fr; }
+
+  .modal { padding: 10px; }
+  .modal-card { padding: 22px 18px 18px; max-height: 92vh; }
+  .modal-summary { grid-template-columns: 1fr; }
+  .stat-card { padding: 12px 14px; }
+  .stat-value { font-size: 22px; }
+  .modal-title { font-size: 18px; }
+  .modal-section { padding-top: 18px; }
+  .chart-time { width: 38px; font-size: 10px; }
 }
 
 /* ===== Reduced motion ===== */
