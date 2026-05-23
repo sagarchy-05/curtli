@@ -378,8 +378,9 @@
       return;
     }
 
-    // Reset modal state
-    $modalCode.textContent = item.shortCode;
+    // Reset modal state — title shows the short *link* (host + code),
+    // subtitle shows the long URL it points to.
+    $modalCode.textContent = stripProtocol(item.shortUrl);
     $modalLong.textContent = item.longUrl;
     $modalTotal.textContent = '—';
     $modalActive.textContent = '—';
@@ -533,21 +534,21 @@
     return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
+  /**
+   * Buckets are stored in UTC on the server. The browser parses the ISO
+   * string into a local Date — fine for whole-hour offsets (UTC, EST, JST,
+   * etc.) but in IST a bucket starting at 14:00 UTC is actually 7:30 PM
+   * local time, not 7:00 PM. Include the `:30` whenever the local time
+   * doesn't land on the hour so the label reflects the real bucket window.
+   */
   function formatHour(date) {
-    const start = date.toLocaleTimeString([], {
-      hour: 'numeric',
-      hour12: true
-    });
-
-    const endDate = new Date(date);
-    endDate.setHours(endDate.getHours() + 1);
-
-    const end = endDate.toLocaleTimeString([], {
-      hour: 'numeric',
-      hour12: true
-    });
-
-    return `${start} – ${end}`;
+    const fmt = (d) => {
+      const opts = { hour: 'numeric', hour12: true };
+      if (d.getMinutes() !== 0) opts.minute = '2-digit';
+      return d.toLocaleTimeString([], opts);
+    };
+    const endDate = new Date(date.getTime() + 3600000);
+    return `${fmt(date)} – ${fmt(endDate)}`;
   }
 
   function formatNumber(n) {
