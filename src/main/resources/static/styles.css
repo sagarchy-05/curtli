@@ -1,56 +1,35 @@
-/* ============================================================
-   curtli — landing page styles (dark mode)
-   Design notes:
-   - Calm, generous spacing
-   - Smooth transitions (~300ms, easeOutExpo where dramatic)
-   - System font stack — no webfont latency
-   - One accent color (violet) used sparingly
-   ============================================================ */
-
 :root {
-  /* ----- Surfaces ----- */
   --bg:            #0a0a0c;
   --bg-gradient:   radial-gradient(1200px 620px at 50% -180px, #1a1228 0%, #0a0a0c 60%);
   --surface:       #131317;
   --surface-2:     #1c1c22;
   --border:        #27272d;
   --border-strong: #3a3a42;
-
-  /* ----- Text ----- */
   --text:          #fafafa;
   --text-muted:    #a1a1aa;
   --text-soft:     #71717a;
-
-  /* ----- Accent: violet ----- */
   --primary:       #a78bfa;
   --primary-700:   #8b5cf6;
   --primary-50:    rgba(167, 139, 250, 0.14);
-
-  /* ----- Semantic ----- */
   --success:       #34d399;
   --success-50:    rgba(52, 211, 153, 0.10);
   --danger:        #f87171;
   --danger-50:     rgba(248, 113, 113, 0.10);
   --danger-strong: #ef4444;
-
   --radius:        14px;
   --radius-sm:     10px;
   --radius-lg:     20px;
-
+  --scrollbar-w:   0px;
   --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md:     0 8px 24px rgba(0, 0, 0, 0.40), 0 1px 2px rgba(0, 0, 0, 0.30);
   --shadow-lg:     0 18px 48px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
-
   --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
-
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "SF Mono", Monaco, "Cascadia Mono", "Roboto Mono", Consolas, monospace;
-
-  color-scheme: dark;
+  --font-sans:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:     "SF Mono", Monaco, "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+  color-scheme:    dark;
 }
 
-/* ===== Reset ===== */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
@@ -72,7 +51,6 @@ h1, h2, h3, p { margin: 0; }
 
 ::selection { background: var(--primary-50); color: var(--text); }
 
-/* ===== Layout ===== */
 .page {
   max-width: 720px;
   margin: 0 auto;
@@ -82,8 +60,6 @@ h1, h2, h3, p { margin: 0; }
   flex-direction: column;
   animation: pageFadeIn 600ms var(--ease-out) both;
 }
-/* Pushes the footer to the bottom of the viewport on short pages
-   (e.g., a new user with no history yet). */
 .main { flex: 1; }
 @keyframes pageFadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -120,7 +96,6 @@ h1, h2, h3, p { margin: 0; }
   gap: 48px;
 }
 
-/* ===== Hero ===== */
 .hero {
   text-align: left;
   animation: heroFadeIn 700ms 100ms var(--ease-out) both;
@@ -142,7 +117,6 @@ h1, h2, h3, p { margin: 0; }
   max-width: 480px;
 }
 
-/* ===== Card ===== */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -156,7 +130,6 @@ h1, h2, h3, p { margin: 0; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ===== Form Rows ===== */
 .rows {
   display: flex;
   flex-direction: column;
@@ -205,9 +178,9 @@ h1, h2, h3, p { margin: 0; }
   border-radius: var(--radius-sm);
   outline: none;
   transition:
-    border-color 200ms var(--ease-in-out),
-    box-shadow 250ms var(--ease-in-out),
-    background 200ms var(--ease-in-out);
+          border-color 200ms var(--ease-in-out),
+          box-shadow 250ms var(--ease-in-out),
+          background 200ms var(--ease-in-out);
 }
 .input::placeholder { color: var(--text-soft); }
 .input:hover { border-color: #525258; }
@@ -233,7 +206,6 @@ h1, h2, h3, p { margin: 0; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ===== Row extras (expires + permanent) ===== */
 .row-extras {
   display: flex;
   align-items: center;
@@ -277,7 +249,6 @@ h1, h2, h3, p { margin: 0; }
   cursor: pointer;
 }
 
-/* ===== Form footer (centered: + and Shorten, side by side) ===== */
 .form-footer {
   display: flex;
   align-items: center;
@@ -297,11 +268,11 @@ h1, h2, h3, p { margin: 0; }
   border-radius: 50%;
   cursor: pointer;
   transition:
-    color 200ms var(--ease-in-out),
-    background 200ms var(--ease-in-out),
-    border-color 200ms var(--ease-in-out),
-    border-style 200ms var(--ease-in-out),
-    transform 200ms var(--ease-out);
+          color 200ms var(--ease-in-out),
+          background 200ms var(--ease-in-out),
+          border-color 200ms var(--ease-in-out),
+          border-style 200ms var(--ease-in-out),
+          transform 200ms var(--ease-out);
 }
 .btn-add:hover {
   color: var(--primary);
@@ -329,7 +300,6 @@ h1, h2, h3, p { margin: 0; }
   text-transform: uppercase;
 }
 
-/* ===== Buttons ===== */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -342,11 +312,11 @@ h1, h2, h3, p { margin: 0; }
   border: 1px solid transparent;
   cursor: pointer;
   transition:
-    background 200ms var(--ease-in-out),
-    border-color 200ms var(--ease-in-out),
-    transform 120ms var(--ease-in-out),
-    box-shadow 200ms var(--ease-in-out),
-    color 200ms var(--ease-in-out);
+          background 200ms var(--ease-in-out),
+          border-color 200ms var(--ease-in-out),
+          transform 120ms var(--ease-in-out),
+          box-shadow 200ms var(--ease-in-out),
+          color 200ms var(--ease-in-out);
 }
 .btn:active { transform: scale(0.98); }
 .btn:focus-visible {
@@ -404,9 +374,9 @@ h1, h2, h3, p { margin: 0; }
   color: var(--text-soft);
   cursor: pointer;
   transition:
-    color 200ms var(--ease-in-out),
-    background 200ms var(--ease-in-out),
-    transform 150ms var(--ease-in-out);
+          color 200ms var(--ease-in-out),
+          background 200ms var(--ease-in-out),
+          transform 150ms var(--ease-in-out);
 }
 .btn-icon svg { width: 18px; height: 18px; }
 .btn-icon:hover { color: var(--text); background: var(--surface-2); }
@@ -425,7 +395,6 @@ h1, h2, h3, p { margin: 0; }
   pointer-events: none;
 }
 
-/* ===== Banner (rate-limit / network errors) ===== */
 .banner {
   margin-top: 16px;
   padding: 12px 14px;
@@ -442,7 +411,6 @@ h1, h2, h3, p { margin: 0; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ===== Section headers ===== */
 .section-title {
   font-size: 12px;
   font-weight: 600;
@@ -452,7 +420,6 @@ h1, h2, h3, p { margin: 0; }
   margin-bottom: 14px;
 }
 
-/* ===== Results ===== */
 .results.hidden { display: none; }
 .results-list, .history-list {
   display: flex;
@@ -469,9 +436,9 @@ h1, h2, h3, p { margin: 0; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   transition:
-    border-color 200ms var(--ease-in-out),
-    box-shadow 200ms var(--ease-in-out),
-    transform 200ms var(--ease-in-out);
+          border-color 200ms var(--ease-in-out),
+          box-shadow 200ms var(--ease-in-out),
+          transform 200ms var(--ease-in-out);
   animation: resultIn 450ms var(--ease-out) both;
 }
 .result:hover, .history-item:hover {
@@ -545,7 +512,6 @@ h1, h2, h3, p { margin: 0; }
   flex-shrink: 0;
 }
 
-/* ===== History ===== */
 .history-section { animation: cardRise 700ms 300ms var(--ease-out) both; }
 .empty {
   padding: 28px 16px;
@@ -562,7 +528,6 @@ h1, h2, h3, p { margin: 0; }
   animation: rowSlideOut 280ms var(--ease-in-out) forwards;
 }
 
-/* ===== Footer ===== */
 .footer {
   margin-top: 64px;
   padding-top: 32px;
@@ -601,7 +566,6 @@ h1, h2, h3, p { margin: 0; }
   margin-top: 4px;
 }
 
-/* ===== Toast ===== */
 .toast {
   position: fixed;
   left: 50%;
@@ -617,8 +581,8 @@ h1, h2, h3, p { margin: 0; }
   opacity: 0;
   pointer-events: none;
   transition:
-    transform 350ms var(--ease-out),
-    opacity 250ms var(--ease-in-out);
+          transform 350ms var(--ease-out),
+          opacity 250ms var(--ease-in-out);
   z-index: 50;
 }
 .toast.show {
@@ -626,10 +590,8 @@ h1, h2, h3, p { margin: 0; }
   transform: translateX(-50%) translateY(0);
 }
 
-/* ===== Stats modal ===== */
 body.modal-open {
   overflow: hidden;
-  /* preserves scrollbar width so layout doesn't shift */
   padding-right: var(--scrollbar-w, 0);
 }
 
@@ -757,16 +719,18 @@ body.modal-open {
 .chart-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 3px 0;
+  gap: 16px;
+  padding: 4px 0;
 }
 .chart-time {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-soft);
-  width: 42px;
+  width: 85px;
+  flex-shrink: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .chart-bar-wrap {
   flex: 1;
@@ -786,7 +750,8 @@ body.modal-open {
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  min-width: 32px;
+  width: 32px;
+  flex-shrink: 0;
   text-align: right;
 }
 
@@ -798,7 +763,6 @@ body.modal-open {
 }
 .modal-error { color: var(--danger); }
 
-/* ===== history-short was an <a>, now a <button> — reset native styles ===== */
 .history-short {
   background: none;
   border: none;
@@ -814,17 +778,14 @@ body.modal-open {
   border-radius: 4px;
 }
 
-/* ===== Hidden utility ===== */
 .hidden { display: none !important; }
 
-/* ===== Mobile ===== */
 @media (max-width: 560px) {
   .page { padding: 24px 16px 48px; }
   .header { margin-bottom: 40px; }
   .main { gap: 36px; }
   .card { padding: 18px; }
   .row-inputs { grid-template-columns: 1fr; }
-
   .modal { padding: 10px; }
   .modal-card { padding: 22px 18px 18px; max-height: 92vh; }
   .modal-summary { grid-template-columns: 1fr; }
@@ -832,10 +793,10 @@ body.modal-open {
   .stat-value { font-size: 22px; }
   .modal-title { font-size: 18px; }
   .modal-section { padding-top: 18px; }
-  .chart-time { width: 38px; font-size: 10px; }
+  .chart-time { width: 65px; font-size: 10px; }
+  .chart-count { width: 32px; }
 }
 
-/* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

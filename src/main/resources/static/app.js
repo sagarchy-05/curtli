@@ -64,9 +64,6 @@
     const node = tplRow.content.firstElementChild.cloneNode(true);
     $rows.appendChild(node);
 
-    const $remove = node.querySelector('.row-remove');
-    $remove.addEventListener('click', () => removeRow(node));
-
     // Permanent checkbox disables (and clears) the days input.
     const $check = node.querySelector('.check-input');
     const $days  = node.querySelector('.input-days');
@@ -84,22 +81,9 @@
     updateRowChrome();
   }
 
-  function removeRow(node) {
-    if ($rows.children.length <= 1) return;
-    node.classList.add('removing');
-    node.addEventListener('animationend', () => {
-      node.remove();
-      updateRowChrome();
-    }, { once: true });
-  }
-
   function updateRowChrome() {
     const rows = $rows.querySelectorAll('.row');
     const count = rows.length;
-
-    rows.forEach(r => {
-      r.querySelector('.row-remove').disabled = count <= 1;
-    });
 
     $rowCounter.textContent = `${count} / ${MAX_ROWS}`;
     $addRow.disabled = count >= MAX_ROWS;
@@ -395,14 +379,14 @@
     }
 
     // Reset modal state
-    $modalCode.textContent   = item.shortCode;
-    $modalLong.textContent   = item.longUrl;
-    $modalTotal.textContent  = '—';
+    $modalCode.textContent = item.shortCode;
+    $modalLong.textContent = item.longUrl;
+    $modalTotal.textContent = '—';
     $modalActive.textContent = '—';
-    $modalChart.innerHTML    = '';
-    $modalEmpty.hidden       = true;
-    $modalError.hidden       = true;
-    $modalLoading.hidden     = false;
+    $modalChart.innerHTML = '';
+    $modalEmpty.hidden = true;
+    $modalError.hidden = true;
+    $modalLoading.hidden = false;
 
     showModal();
 
@@ -411,63 +395,53 @@
       renderStats(stats);
     } catch (err) {
       $modalLoading.hidden = true;
-      $modalError.hidden   = false;
+      $modalError.hidden = false;
       $modalError.textContent = err.status === 404
-        ? 'This link no longer exists.'
-        : (err.message || 'Could not load stats.');
+          ? 'This link no longer exists.'
+          : (err.message || 'Could not load stats.');
     }
   }
 
   function renderStats(stats) {
-    $modalLoading.hidden    = true;
+    $modalLoading.hidden = true;
     $modalTotal.textContent = formatNumber(stats.totalClicks);
 
-    const buckets     = buildLast24h(stats.hourly);
-    const activeHours = buckets.filter(b => b.clicks > 0).length;
-    $modalActive.textContent = String(activeHours);
+    // Only hours with clicks
+    const hourly = (stats.hourly ?? [])
+        .filter(h => Number(h.clicks) > 0)
+        .sort((a, b) => new Date(a.hour) - new Date(b.hour));
 
-    if (stats.totalClicks === 0) {
+    $modalActive.textContent = String(hourly.length);
+
+    $modalChart.innerHTML = '';
+
+    if (hourly.length === 0) {
       $modalEmpty.hidden = false;
       return;
     }
 
-    const max = Math.max(...buckets.map(b => b.clicks), 1);
-    $modalChart.innerHTML = '';
+    $modalEmpty.hidden = true;
 
-    for (const b of buckets) {
+    const max = Math.max(...hourly.map(h => h.clicks), 1);
+
+    for (const h of hourly) {
       const row = tplChartRow.content.firstElementChild.cloneNode(true);
-      row.querySelector('[data-time]').textContent  = formatHour(b.time);
-      row.querySelector('[data-count]').textContent = formatNumber(b.clicks);
+
+      row.querySelector('[data-time]').textContent =
+          formatHour(new Date(h.hour));
+
+      row.querySelector('[data-count]').textContent =
+          formatNumber(h.clicks);
+
       const $bar = row.querySelector('[data-bar]');
-      // Trigger the width transition on the next frame so it animates from 0
+
       requestAnimationFrame(() => {
-        $bar.style.width = ((b.clicks / max) * 100).toFixed(1) + '%';
+        $bar.style.width =
+            ((h.clicks / max) * 100).toFixed(1) + '%';
       });
+
       $modalChart.appendChild(row);
     }
-  }
-
-  function buildLast24h(hourly) {
-    // Map server-returned (hour ISO string) → click count, keyed by epoch ms
-    const map = new Map();
-    for (const h of hourly || []) {
-      const ts = new Date(h.hour).getTime();
-      if (!isNaN(ts)) map.set(ts, h.clicks);
-    }
-
-    // Truncate "now" to the current hour
-    const now = new Date();
-    now.setMinutes(0, 0, 0);
-
-    const buckets = [];
-    for (let i = 23; i >= 0; i--) {
-      const t = now.getTime() - i * 3600 * 1000;
-      buckets.push({
-        time: new Date(t),
-        clicks: map.get(t) || 0,
-      });
-    }
-    return buckets;  // oldest → newest, left-to-right
   }
 
   function showModal() {
@@ -560,7 +534,20 @@
   }
 
   function formatHour(date) {
-    return String(date.getHours()).padStart(2, '0') + ':00';
+    const start = date.toLocaleTimeString([], {
+      hour: 'numeric',
+      hour12: true
+    });
+
+    const endDate = new Date(date);
+    endDate.setHours(endDate.getHours() + 1);
+
+    const end = endDate.toLocaleTimeString([], {
+      hour: 'numeric',
+      hour12: true
+    });
+
+    return `${start} – ${end}`;
   }
 
   function formatNumber(n) {
