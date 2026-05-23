@@ -1,5 +1,5 @@
 /* ============================================================
-   curtli — landing page logic
+   curtli – landing page logic
    Vanilla JS, no build step. Talks to /api/shorten (always as
    an array) and /api/links/{id}/stats. Persists "Your links" in
    localStorage; clicking a saved short link opens a stats modal.
@@ -49,7 +49,7 @@
 
   // Modal close handlers (X button + backdrop click + ESC)
   $modal.querySelectorAll('[data-modal-close]').forEach(el =>
-    el.addEventListener('click', closeModal)
+      el.addEventListener('click', closeModal)
   );
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !$modal.classList.contains('hidden')) closeModal();
@@ -194,7 +194,7 @@
         expiresInDays: r.expiresInDays,
       }));
 
-      // Always-array endpoint — single or bulk are the same call now.
+      // Always-array endpoint – single or bulk are the same call now.
       const { successful, failed } = await shortenAll(payload);
 
       // Persist successes to history (now including id for stats lookup)
@@ -294,8 +294,8 @@
   function showFailuresBanner(failed, successCount) {
     const total = failed.length + successCount;
     const intro = successCount > 0
-      ? `${failed.length} of ${total} link${total === 1 ? '' : 's'} couldn't be shortened`
-      : `Couldn't shorten ${failed.length} link${failed.length === 1 ? '' : 's'}`;
+        ? `${failed.length} of ${total} link${total === 1 ? '' : 's'} couldn't be shortened`
+        : `Couldn't shorten ${failed.length} link${failed.length === 1 ? '' : 's'}`;
 
     // Cap to 3 distinct error messages to keep the banner short.
     const seen = new Set();
@@ -325,13 +325,13 @@
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
     } catch (_) {
-      // Storage full / disabled — silently skip
+      // Storage full / disabled – silently skip
     }
   }
 
   function addToHistory(item) {
     const list = loadHistory();
-    // Dedupe by shortCode — newest wins
+    // Dedupe by shortCode – newest wins
     const filtered = list.filter(x => x.shortCode !== item.shortCode);
     filtered.unshift(item);
     saveHistory(filtered.slice(0, HISTORY_LIMIT));
@@ -378,12 +378,12 @@
       return;
     }
 
-    // Reset modal state — title shows the short *link* (host + code),
+    // Reset modal state – title shows the short *link* (host + code),
     // subtitle shows the long URL it points to.
     $modalCode.textContent = stripProtocol(item.shortUrl);
     $modalLong.textContent = item.longUrl;
-    $modalTotal.textContent = '—';
-    $modalActive.textContent = '—';
+    $modalTotal.textContent = '…';
+    $modalActive.textContent = '…';
     $modalChart.innerHTML = '';
     $modalEmpty.hidden = true;
     $modalError.hidden = true;
@@ -535,18 +535,22 @@
   }
 
   /**
-   * Buckets are stored in UTC on the server. The browser parses the ISO
-   * string into a local Date — fine for whole-hour offsets (UTC, EST, JST,
-   * etc.) but in IST a bucket starting at 14:00 UTC is actually 7:30 PM
-   * local time, not 7:00 PM. Include the `:30` whenever the local time
-   * doesn't land on the hour so the label reflects the real bucket window.
+   * Formats the time bucket strictly to zero-padded 12-hour format
+   * outputting a consistent string length (e.g. "01:30 AM – 02:30 AM").
    */
   function formatHour(date) {
     const fmt = (d) => {
-      const opts = { hour: 'numeric', hour12: true };
-      if (d.getMinutes() !== 0) opts.minute = '2-digit';
-      return d.toLocaleTimeString([], opts);
+      let hours = d.getHours();
+      const minutes = d.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+
+      hours = hours % 12 || 12; // 0 becomes 12
+      const paddedHours = String(hours).padStart(2, '0');
+
+      // Always outputting minutes ensures the string length is identical
+      return `${paddedHours}:${minutes} ${ampm}`;
     };
+
     const endDate = new Date(date.getTime() + 3600000);
     return `${fmt(date)} – ${fmt(endDate)}`;
   }
