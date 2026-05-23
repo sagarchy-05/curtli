@@ -77,8 +77,14 @@ h1, h2, h3, p { margin: 0; }
   max-width: 720px;
   margin: 0 auto;
   padding: 32px 24px 64px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   animation: pageFadeIn 600ms var(--ease-out) both;
 }
+/* Pushes the footer to the bottom of the viewport on short pages
+   (e.g., a new user with no history yet). */
+.main { flex: 1; }
 @keyframes pageFadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
