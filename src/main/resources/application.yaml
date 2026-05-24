@@ -29,7 +29,11 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-      timeout: 200ms
+      # Lettuce command timeout. Must exceed the consumer's BLOCK duration
+      # (curtli.click-stream.block-millis) or every blocking XREADGROUP will
+      # time out client-side before the server can respond. 5s leaves a wide
+      # margin over the 500ms default block.
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:5000ms}
       lettuce:
         pool:
           max-active: 16

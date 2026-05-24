@@ -147,6 +147,31 @@ Response shape (single item shown for brevity — the array is always returned i
 
 Hold onto `id` client-side — that's the key to `GET /api/links/{id}/stats`.
 
+## Production deployment
+
+Live at **[curtli.com](https://curtli.com)**, running on AWS with Cloudflare in front.
+
+```
+            ─── https ───►  Cloudflare
+                            (TLS, CDN, DDoS, port 80/443 → 8080)
+                                   │
+                                   ▼
+                          ECS Fargate task
+                          (0.25 vCPU · 1 GiB · public IP · port 8080)
+                              │            │
+                              ▼            ▼
+                       RDS Postgres   ElastiCache Redis
+                       (free tier)    (free tier)
+```
+
+A few decisions worth flagging:
+
+- **Cloudflare instead of an Application Load Balancer.** A single-task setup doesn't need L7 load balancing, and ALB is ~$16/mo plus an ACM cert dance. Cloudflare gives free TLS termination, a global CDN, DDoS protection, and translates public `:443` → origin `:8080` — at $0/mo. Total infra cost lands around **$4/mo** (the Fargate public IPv4 charge plus tiny Route 53 fees), with RDS and ElastiCache inside the free-tier window.
+- **Hardened container, port 8080.** The image runs as a non-root `appuser`, which can't bind privileged ports `<1024`. Rather than re-privilege the container to bind `:80` directly, Cloudflare handles the port translation at the edge.
+- **Lettuce client timeout > Redis BLOCK duration.** The consumer issues `XREADGROUP ... BLOCK 500ms`, so the client-side Lettuce timeout must exceed that or every poll gets cancelled before Redis can respond. Configured via `SPRING_DATA_REDIS_TIMEOUT=5000`.
+- **MKSTREAM on startup.** `ClickEventConsumer.initGroup()` checks if the stream exists and primes it with a one-shot `XADD` before creating the consumer group — the high-level Spring Data Redis API doesn't expose Redis's `MKSTREAM` flag directly.
+- **Cache-node endpoint, not Replication Group endpoint** for ElastiCache. Fargate's VPC DNS resolver was inconsistent on the `.ng.0001.aps2` Replication Group endpoint at launch; pointing at the stable specific-node endpoint (`curtli-redis-001…`) sidestepped it.
+
 ## Stack
 
 Java 21 · Spring Boot 3.3 · PostgreSQL 16 (Flyway) · Redis 7 · Resilience4j · vanilla HTML/CSS/JS frontend · Docker Compose.
