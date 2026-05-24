@@ -5,12 +5,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.stream.*;
-import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -32,20 +30,23 @@ public class ClickEventConsumer {
     @PostConstruct
     public void initGroup() {
         try {
-            // Use MKSTREAM so this also creates the stream if it doesn't exist yet
-            // (fresh ElastiCache, fresh local Redis). The high-level opsForStream()
-            // .createGroup() doesn't expose this flag, so we drop to the connection
-            // callback.
-            redis.execute((RedisCallback<String>) connection ->
-                    connection.streamCommands().xGroupCreate(
-                            streamName.getBytes(StandardCharsets.UTF_8),
-                            group,
-                            ReadOffset.from("0"),
-                            true
-                    )
-            );
-        } catch (Exception ignored) {
-            // BUSYGROUP if the group already exists on subsequent boots. Safe to ignore.
+            // 1. Emulate MKSTREAM by creating the stream with a dummy record if it doesn't exist
+            if (!redis.hasKey(streamName)) {
+                redis.opsForStream().add(streamName, Map.of("init", "1"));
+                log.info("Created new Redis stream: {}", streamName);
+            }
+
+            // 2. Create the consumer group
+            redis.opsForStream().createGroup(streamName, ReadOffset.from("0"), group);
+            log.info("Successfully created consumer group: {}", group);
+
+        } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("BUSYGROUP")) {
+                log.info("Redis consumer group '{}' already exists. Skipping.", group);
+            } else {
+                // DON'T ignore other errors! Print them so we know what's actually breaking.
+                log.error("CRITICAL: Failed to initialize Redis stream/group: ", e);
+            }
         }
     }
 
