@@ -500,6 +500,12 @@ h1, h2, h3, p { margin: 0; }
   font-weight: 600;
   color: var(--danger);
 }
+.result-attempted-alias {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 3px;
+}
 .result-error-message {
   font-size: 13px;
   color: #fca5a5;

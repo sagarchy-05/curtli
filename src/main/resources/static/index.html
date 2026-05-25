@@ -53,6 +53,11 @@
         <div id="banner" class="banner hidden" role="alert"></div>
       </section>
 
+      <section id="results-section" class="results hidden" aria-live="polite">
+        <h2 class="section-title">Just shortened</h2>
+        <div id="results" class="results-list"></div>
+      </section>
+
       <section class="history-section">
         <h2 class="section-title">Your links</h2>
         <div id="history" class="history-list"></div>
@@ -127,6 +132,34 @@
       </div>
 
       <p class="row-error" data-error hidden></p>
+    </div>
+  </template>
+
+  <template id="tpl-result-success">
+    <div class="result result-success">
+      <div class="result-main">
+        <a class="result-short" data-short target="_blank" rel="noopener"></a>
+        <p class="result-long" data-long></p>
+      </div>
+      <div class="result-actions">
+        <button type="button" class="btn-icon btn-copy" data-copy aria-label="Copy short link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-result-failure">
+    <div class="result result-failure">
+      <div class="result-main">
+        <p class="result-error-title">Couldn't shorten this one</p>
+        <p class="result-long" data-long></p>
+        <p class="result-attempted-alias" data-alias hidden></p>
+        <p class="result-error-message" data-error></p>
+      </div>
     </div>
   </template>
 

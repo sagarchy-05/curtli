@@ -21,6 +21,8 @@
   const $rowCounter    = document.getElementById('row-counter');
   const $submitBtn     = document.getElementById('submit-btn');
   const $banner        = document.getElementById('banner');
+  const $resultsSection= document.getElementById('results-section');
+  const $results       = document.getElementById('results');
   const $history       = document.getElementById('history');
   const $historyEmpty  = document.getElementById('history-empty');
   const $toast         = document.getElementById('toast');
@@ -37,6 +39,8 @@
   const $modalError   = $modal.querySelector('[data-modal-error]');
 
   const tplRow      = document.getElementById('tpl-row');
+  const tplSuccess  = document.getElementById('tpl-result-success');
+  const tplFailure  = document.getElementById('tpl-result-failure');
   const tplHistory  = document.getElementById('tpl-history-item');
   const tplChartRow = document.getElementById('tpl-chart-row');
 
@@ -217,6 +221,10 @@
       // Always-array endpoint – single or bulk are the same call now.
       const { successful, failed } = await shortenAll(payload);
 
+      // Render the "Just shortened" cards (failures listed first so they
+      // can't be missed beneath a wall of successes).
+      renderResults(successful, failed);
+
       // Persist successes to history (now including id for stats lookup)
       successful.forEach(s => addToHistory({
         id:        s.id,
@@ -244,10 +252,11 @@
       });
       updateRowChrome();
 
-      // Failures surface as a banner instead of a separate "Just shortened"
-      // section. Successes show up silently in "Your links".
-      if (failed.length > 0) {
-        showFailuresBanner(failed, successful.length);
+      // Smooth-scroll the results into view if anything was returned.
+      if (successful.length > 0 || failed.length > 0) {
+        requestAnimationFrame(() => {
+          $resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
       }
 
     } catch (err) {
@@ -309,25 +318,63 @@
     showBanner(err.message || `Unexpected error (${err.status}).`);
   }
 
-  // ----- Failures banner ----------------------------------------
+  // ----- Result rendering ---------------------------------------
 
-  function showFailuresBanner(failed, successCount) {
-    const total = failed.length + successCount;
-    const intro = successCount > 0
-        ? `${failed.length} of ${total} link${total === 1 ? '' : 's'} couldn't be shortened`
-        : `Couldn't shorten ${failed.length} link${failed.length === 1 ? '' : 's'}`;
+  function renderResults(successful, failed) {
+    $results.innerHTML = '';
 
-    // Cap to 3 distinct error messages to keep the banner short.
-    const seen = new Set();
-    const messages = [];
-    for (const f of failed) {
-      const m = f.errorMessage || 'Unknown error';
-      if (!seen.has(m)) { seen.add(m); messages.push(m); }
-      if (messages.length === 3) break;
+    // Failures first — they need user attention; successes also land in "Your links".
+    const items = [
+      ...failed.map(f => ({ kind: 'failure', data: f })),
+      ...successful.map(s => ({ kind: 'success', data: s })),
+    ];
+
+    if (items.length === 0) {
+      $resultsSection.classList.add('hidden');
+      return;
     }
-    const tail = (failed.length > messages.length) ? ` (+${failed.length - messages.length} more)` : '';
-    showBanner(`${intro}: ${messages.join('; ')}${tail}`);
+
+    items.forEach((item, i) => {
+      const node = item.kind === 'success'
+          ? renderSuccess(item.data)
+          : renderFailure(item.data);
+      node.style.animationDelay = `${i * 50}ms`;
+      $results.appendChild(node);
+    });
+
+    $resultsSection.classList.remove('hidden');
   }
+
+  function renderSuccess(data) {
+    const node = tplSuccess.content.firstElementChild.cloneNode(true);
+    const $short = node.querySelector('[data-short]');
+    const $long  = node.querySelector('[data-long]');
+    const $copy  = node.querySelector('[data-copy]');
+
+    $short.textContent = stripProtocol(data.shortUrl);
+    $short.href = data.shortUrl;             // clicking opens in new tab
+    $long.textContent = data.longUrl;
+    $copy.addEventListener('click', () => copyToClipboard(data.shortUrl, $copy));
+
+    return node;
+  }
+
+  function renderFailure(data) {
+    const node = tplFailure.content.firstElementChild.cloneNode(true);
+    node.querySelector('[data-long]').textContent  = data.longUrl || '(no URL)';
+    node.querySelector('[data-error]').textContent = data.errorMessage || 'Unknown error';
+
+    // If the user tried a custom alias, show it — gives context for
+    // "Alias already taken" / "Invalid alias format" errors.
+    if (data.attemptedAlias) {
+      const $alias = node.querySelector('[data-alias]');
+      $alias.textContent = `Tried alias: ${data.attemptedAlias}`;
+      $alias.hidden = false;
+    }
+
+    return node;
+  }
+
 
   // ----- History (localStorage) ---------------------------------
 
