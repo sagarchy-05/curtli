@@ -64,6 +64,10 @@
     const node = tplRow.content.firstElementChild.cloneNode(true);
     $rows.appendChild(node);
 
+    // Wire the trash icon to remove this row.
+    node.querySelector('.row-remove')
+        .addEventListener('click', () => removeRow(node));
+
     // Permanent checkbox disables (and clears) the days input.
     const $check = node.querySelector('.check-input');
     const $days  = node.querySelector('.input-days');
@@ -81,9 +85,25 @@
     updateRowChrome();
   }
 
+  function removeRow(node) {
+    // Always keep at least one row in the form.
+    if ($rows.children.length <= 1) return;
+
+    node.classList.add('removing');
+    node.addEventListener('animationend', () => {
+      node.remove();
+      updateRowChrome();
+    }, { once: true });
+  }
+
   function updateRowChrome() {
     const rows = $rows.querySelectorAll('.row');
     const count = rows.length;
+
+    // The single remaining row's trash icon is hidden (CSS) by disabling it.
+    rows.forEach(r => {
+      r.querySelector('.row-remove').disabled = count <= 1;
+    });
 
     $rowCounter.textContent = `${count} / ${MAX_ROWS}`;
     $addRow.disabled = count >= MAX_ROWS;
