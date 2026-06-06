@@ -75,6 +75,12 @@ services:
       DB_POOL_IDLE_TIMEOUT: ${DB_POOL_IDLE_TIMEOUT}
       DB_POOL_MAX_LIFETIME: ${DB_POOL_MAX_LIFETIME}
       DB_POOL_LEAK_DETECTION: ${DB_POOL_LEAK_DETECTION}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     logging:
       driver: json-file
       options:

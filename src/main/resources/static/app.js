@@ -72,14 +72,25 @@
     node.querySelector('.row-remove')
         .addEventListener('click', () => removeRow(node));
 
-    // Permanent checkbox disables (and clears) the days input.
+    // Permanent checkbox starts checked (template default), which means the
+    // days input starts disabled. Un-checking the box forces the user into an
+    // expiring link — default to 30 days if they haven't picked a value (or
+    // typed 0), so a link can never be created with neither permanent nor a
+    // concrete expiry.
     const $check = node.querySelector('.check-input');
     const $days  = node.querySelector('.input-days');
+    $days.disabled = $check.checked;
     $check.addEventListener('change', () => {
       $days.disabled = $check.checked;
       if ($check.checked) {
-        $days.value = '';
+        // Keep the value so toggling permanent off again restores their last
+        // entry. readRow() ignores the days field when isPermanent is true.
         $days.classList.remove('invalid');
+      } else {
+        const n = parseInt($days.value, 10);
+        if (!$days.value || !Number.isFinite(n) || n < 1) {
+          $days.value = '30';
+        }
       }
     });
 
@@ -235,7 +246,8 @@
       }));
       renderHistory();
 
-      // Reset form: remove all rows but the first, clear inputs
+      // Reset form: remove all rows but the first, clear inputs. Defaults
+      // match a fresh template row — permanent checked, days disabled+empty.
       Array.from($rows.querySelectorAll('.row')).forEach((r, i) => {
         if (i === 0) {
           r.querySelector('.input-url').value = '';
@@ -243,8 +255,8 @@
           const $days  = r.querySelector('.input-days');
           const $check = r.querySelector('.check-input');
           $days.value = '';
-          $days.disabled = false;
-          $check.checked = false;
+          $check.checked = true;
+          $days.disabled = true;
           clearRowError(r);
         } else {
           r.remove();

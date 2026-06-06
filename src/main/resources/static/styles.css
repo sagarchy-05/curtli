@@ -761,13 +761,35 @@ body.modal-open {
   text-align: right;
 }
 
-.modal-loading, .modal-empty, .modal-error {
+.modal-empty, .modal-error {
   text-align: center;
   font-size: 13px;
   color: var(--text-soft);
   padding: 24px 0;
 }
 .modal-error { color: var(--danger); }
+
+.modal-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 32px 0;
+}
+.modal-loading[hidden] { display: none; }
+.loading-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: dotBounce 1.2s var(--ease-in-out) infinite;
+}
+.loading-dot:nth-child(2) { animation-delay: 0.15s; }
+.loading-dot:nth-child(3) { animation-delay: 0.30s; }
+@keyframes dotBounce {
+  0%, 60%, 100% { transform: translateY(0);   opacity: 0.4; }
+  30%           { transform: translateY(-8px); opacity: 1;   }
+}
 
 .history-short {
   background: none;

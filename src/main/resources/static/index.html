@@ -126,7 +126,7 @@
           autocomplete="off">
         <span class="extras-label">days</span>
         <label class="check-permanent">
-          <input type="checkbox" class="check-input">
+          <input type="checkbox" class="check-input" checked>
           <span>permanent</span>
         </label>
       </div>
@@ -220,7 +220,11 @@
       <div class="modal-section">
         <h4 class="modal-section-title">Last 24 hours</h4>
         <div class="modal-chart" data-modal-chart></div>
-        <p class="modal-loading" data-modal-loading>Loading…</p>
+        <div class="modal-loading" data-modal-loading role="status" aria-label="Loading stats">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
         <p class="modal-empty" data-modal-empty hidden>No clicks in the last 24 hours.</p>
         <p class="modal-error" data-modal-error hidden></p>
       </div>

@@ -8,6 +8,10 @@ RUN mvn -B clean package -DskipTests
 
 # ---------- Stage 2: Run ----------
 FROM eclipse-temurin:21-jre-jammy
+# curl is used by the docker-compose healthcheck against /actuator/health.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 RUN useradd -m appuser

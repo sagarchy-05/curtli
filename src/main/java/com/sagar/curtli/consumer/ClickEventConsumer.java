@@ -77,10 +77,10 @@ public class ClickEventConsumer {
             }
 
             // Acknowledge every record we read (including the init placeholder
-            // and any we skipped above) so they don't get redelivered.
-            for (MapRecord<String, Object, Object> r : records) {
-                redis.opsForStream().acknowledge(streamName, group, r.getId());
-            }
+            // and any we skipped above) in a single XACK call so we make one
+            // Redis round-trip per batch rather than N.
+            RecordId[] ids = records.stream().map(MapRecord::getId).toArray(RecordId[]::new);
+            redis.opsForStream().acknowledge(streamName, group, ids);
         } catch (Exception e) {
             // A transient Redis or DB hiccup (timeout, brief disconnect, etc.)
             // would otherwise spam ERROR + full stack trace via Spring's

@@ -10,8 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -27,28 +28,27 @@ public class ClickAggregator {
             return;
         }
 
-        // Calculate the current "bucket hour" by truncating the current time to the hour
         OffsetDateTime currentHourBucket = OffsetDateTime.now().truncatedTo(ChronoUnit.HOURS);
+
+        // One SELECT for the whole batch — avoids the N round-trips a per-code
+        // findByShortCode loop would issue.
+        List<Link> links = linkRepository.findAllByShortCodeInAndActiveTrue(codeToCount.keySet());
+        Map<String, Long> codeToId = links.stream()
+                .collect(Collectors.toMap(Link::getShortCode, Link::getId));
 
         for (Map.Entry<String, Long> entry : codeToCount.entrySet()) {
             String shortCode = entry.getKey();
             Long newClicks = entry.getValue();
+            Long linkId = codeToId.get(shortCode);
+
+            if (linkId == null) {
+                log.warn("Aggregator: Link not found or inactive for code: {}", shortCode);
+                continue;
+            }
 
             try {
-                Optional<Link> linkOpt = linkRepository.findByShortCodeAndActiveTrue(shortCode);
-
-                if (linkOpt.isPresent()) {
-                    Long linkId = linkOpt.get().getId();
-
-                    // 1. Update the all-time total count on the links table
-                    linkRepository.incrementClickCount(linkId, newClicks);
-
-                    // 2. Update the time-series analytics on the click_stats table
-                    clickStatRepository.upsertClickCount(linkId, currentHourBucket, newClicks);
-
-                } else {
-                    log.warn("Aggregator: Link not found or inactive for code: {}", shortCode);
-                }
+                linkRepository.incrementClickCount(linkId, newClicks);
+                clickStatRepository.upsertClickCount(linkId, currentHourBucket, newClicks);
             } catch (Exception e) {
                 log.error("Failed to aggregate clicks for code {}: {}", shortCode, e.getMessage());
             }

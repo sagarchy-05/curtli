@@ -1,0 +1,47 @@
+# Build output
+target/
+*.jar
+!**/maven-wrapper.jar
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+*.swp
+.project
+.classpath
+.settings/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Env / secrets — never bake into an image
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Docs and tooling not needed at runtime
+README.md
+CLAUDE.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+.github/
+
+# Maven wrapper (Dockerfile uses the maven: base image's mvn directly)
+mvnw
+mvnw.cmd
+.mvn/
+
+# Test reports
+surefire-reports/

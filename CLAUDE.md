@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **curtli** — a URL shortener, deployed at https://curtli.com. Spring Boot 3.3 / Java 21 backend, vanilla-JS frontend (no build step), PostgreSQL source of truth, Redis for cache + rate limiting + async event stream. Hosted on AWS ECS Fargate fronted by Cloudflare.
 
-`README.md` carries the architecture story (click pipeline, fail-open patterns, deployment topology). `curtli_qna.md` is the interview-prep deep-dive on every design decision. Read both before refactoring — most "weird" choices have a justified reason.
+`README.md` carries the architecture story (click pipeline, fail-open patterns, deployment topology). Read it before refactoring — most "weird" choices have a justified reason.
 
 ## Heads-up: the directory is named `linkly`
 
@@ -129,4 +129,4 @@ PostgreSQL with **Flyway migrations** in `src/main/resources/db/migration/`. Sch
 
 ## When in doubt
 
-Read `README.md` for the architecture story, then `curtli_qna.md` for the design-decision deep-dive. Most things have an articulated reason; don't refactor without understanding it first.
+Read `README.md` for the architecture story. Most things have an articulated reason; don't refactor without understanding it first.
