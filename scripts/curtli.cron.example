@@ -1,0 +1,30 @@
+# /etc/cron.d/curtli — example.
+#
+# Install on the EC2 host with:
+#
+#   sudo cp /opt/curtli/scripts/curtli.cron.example /etc/cron.d/curtli
+#   sudo nano /etc/cron.d/curtli          # set BUCKET= to your actual bucket
+#   sudo chmod 644 /etc/cron.d/curtli     # cron refuses world-writable cron files
+#
+# Logs land in /var/log/curtli-*.log (cron job stdout/stderr) and journalctl
+# (the scripts also call `logger` so output appears under syslog tags
+#  curtli-backup and curtli-sg-sync).
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+
+# Required: your S3 backup bucket name (the random-suffixed one from Phase 1).
+BUCKET=curtli-db-backups-REPLACE_ME
+
+# Optional overrides (defaults are baked into the scripts):
+# REGION=ap-south-2
+# SG_NAME=curtli-ec2-sg
+# CONTAINER=curtli-db
+
+# ─── Jobs ───────────────────────────────────────────────────────────────────
+
+# Nightly Postgres dump → S3, 02:00 UTC (07:30 IST)
+0 2 * * * root /opt/curtli/scripts/pg-backup.sh >> /var/log/curtli-backup.log 2>&1
+
+# Weekly Cloudflare-IP → SG sync, Sundays 04:00 UTC (09:30 IST)
+0 4 * * 0 root /opt/curtli/scripts/cloudflare-sg-sync.sh >> /var/log/curtli-sg-sync.log 2>&1
