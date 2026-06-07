@@ -319,6 +319,13 @@
       showBanner(`You're going a bit fast. Try again in ${secs} second${secs === 1 ? '' : 's'}.`);
       return;
     }
+    if (err.status === 503) {
+      // Rate limiter (or whatever else) signalled "service degraded, back off".
+      // Different wording from 429 because this is on our end, not the user's.
+      const secs = err.retryAfter || 15;
+      showBanner(`Service is briefly degraded — please retry in ${secs} second${secs === 1 ? '' : 's'}.`);
+      return;
+    }
     if (err.status === 400 && rows.length === 1) {
       const msg = err.message || 'Invalid request.';
       let target = 'url';

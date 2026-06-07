@@ -2,6 +2,7 @@ package com.sagar.curtli.service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RateLimiterService {
     private final StringRedisTemplate redis;
     private DefaultRedisScript<List> script;
@@ -27,13 +29,25 @@ public class RateLimiterService {
     }
 
     /**
-     * One token per request. With the new unified /api/shorten endpoint a
-     * single request can carry up to BULK_BATCH_SIZE URLs, but they still
-     * cost one token — keeps the limiter simple and the 10/min default
-     * generous enough for any realistic interactive use.
+     * One token per request. With the unified /api/shorten endpoint a single
+     * request can carry up to BULK_BATCH_SIZE URLs, but they still cost one
+     * token — keeps the limiter simple and the 10/min default generous
+     * enough for any realistic interactive use.
+     *
+     * Returns {@link RateLimitResult#UNAVAILABLE} on Redis failure (timeout,
+     * OOM under noeviction, connection refused) so the caller can serve a
+     * structured 503 instead of letting the exception become a generic 500
+     * — and crucially without falling open and bypassing the limit.
      */
-    public boolean tryAcquire(String identityKey) {
-        return executeLua("rl:" + identityKey, anonRate, anonRate / 60.0);
+    public RateLimitResult tryAcquire(String identityKey) {
+        try {
+            boolean allowed = executeLua("rl:" + identityKey, anonRate, anonRate / 60.0);
+            return allowed ? RateLimitResult.ALLOWED : RateLimitResult.DENIED;
+        } catch (Exception e) {
+            log.warn("Rate limiter unavailable for {}: {} — failing closed",
+                    identityKey, e.getMessage());
+            return RateLimitResult.UNAVAILABLE;
+        }
     }
 
     private boolean executeLua(String key, int maxTokens, double refillPerSec) {

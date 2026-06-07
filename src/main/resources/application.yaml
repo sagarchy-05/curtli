@@ -51,10 +51,16 @@ server:
 
 curtli:
   base-url: ${CURTLI_BASE_URL:http://localhost:8080}
-  cache-ttl-seconds: 86400
+  cache-ttl-seconds: ${CURTLI_CACHE_TTL_SECONDS:10800}
   rate-limit:
-    anonymous-per-minute: 10
+    # Tunable per-IP cap. Drop this during incidents to throttle harder
+    # without a rebuild; an env override + restart is enough.
+    anonymous-per-minute: ${CURTLI_RATE_LIMIT_PER_MINUTE:10}
     authenticated-per-minute: 100
+  # Window during which repeat clicks from the same IP on the same short
+  # link collapse into one analytics event. Centralized here (was a magic
+  # 10 in ClickDebouncer.java) so the value is reviewable in one place.
+  click-debounce-seconds: 10
   bulk-batch-size: ${BULK_BATCH_SIZE:20}
   click-stream:
     name: "click_events"

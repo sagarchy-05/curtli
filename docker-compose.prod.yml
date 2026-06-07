@@ -1,0 +1,63 @@
+# Production override for EC2 t4g.small (2 GB RAM + 2 GB swap).
+# Layer on top of the base compose at deploy time:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Memory ceilings sum to ~1.4 GB across the three services, leaving room
+# for the host OS plus swap as a circuit breaker (not normal headroom —
+# swap on EBS is slow, treat it as OOM-prevention only).
+
+services:
+  app:
+    environment:
+      # JVM heap sizing. JAVA_TOOL_OPTIONS is read by the JVM directly at
+      # startup, so the Dockerfile's exec-form ENTRYPOINT picks it up
+      # without shell expansion. (JAVA_OPTS would NOT work here — exec form
+      # doesn't run a shell, so $JAVA_OPTS never gets expanded. This is
+      # the first bug we're correcting.)
+      #
+      # Explicit -Xmx overrides the Dockerfile's -XX:MaxRAMPercentage=75.0
+      # because MaxRAMPercentage only applies when -Xmx is unset. No image
+      # rebuild needed to change heap size — just edit this file.
+      #
+      # -Xms256m < -Xmx640m lets the heap grow lazily instead of
+      # pre-claiming 640 MB at startup, which matters during the cold-start
+      # race with Postgres and Redis on a 2 GB host.
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx640m"
+    mem_limit: 800m
+
+  postgres:
+    # Tuned for the 400 MB container ceiling. shared_buffers ~25% of
+    # container memory is the Postgres recommendation; max_connections=50
+    # is well above the Hikari pool's max of 20 with headroom for psql
+    # sessions and admin tooling.
+    command: postgres -c shared_buffers=128MB -c max_connections=50
+    mem_limit: 400m
+
+  redis:
+    # noeviction is intentional. Under memory pressure Redis refuses new
+    # writes rather than evicting existing keys — which matches curtli's
+    # write paths, all of which are already designed to fail safely:
+    #
+    #   link:{code} cache write   try/catch in ShortenerService/ResolverService
+    #                             → log + continue (DB is still the source of truth)
+    #   XADD click_events         try/catch in ClickEventPublisher
+    #                             → log + continue (analytics degrade silently)
+    #   HMSET rl:{ip} (existing)  in-place update, no memory growth
+    #                             → rate limiting keeps working for hot IPs
+    #   HMSET rl:{ip} (new IP)    errors out → request 500s
+    #                             → fail CLOSED, no bypass during attack
+    #   SETIFABSENT lock:click... try/catch in ClickDebouncer
+    #                             → fails open, worst case is a duplicate count
+    #
+    # Eviction policies (allkeys-lru / volatile-lru) would silently lose
+    # rate-limit buckets and cache entries under pressure — which is worse
+    # than failing writes, because eviction is invisible while errors are
+    # observable in logs and HTTP 500 metrics.
+    command: >-
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 100mb
+      --maxmemory-policy noeviction
+    mem_limit: 200m
