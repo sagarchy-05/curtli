@@ -141,6 +141,8 @@
       rowEl,
       longUrl,
       customAlias: customAlias || null,
+      isPermanent,
+      daysVal,
       expiresInDays,
     };
   }
@@ -159,7 +161,10 @@
     if (row.customAlias && !/^[a-zA-Z0-9_-]{3,16}$/.test(row.customAlias)) {
       return { msg: 'Alias must be 3–16 chars (letters, digits, _ or -).', target: 'alias' };
     }
-    if (row.expiresInDays !== null) {
+    if (!row.isPermanent) {
+      if (!row.daysVal) {
+        return { msg: 'Please select permanent or provide number of days.', target: 'days' };
+      }
       const n = row.expiresInDays;
       if (!Number.isFinite(n) || !Number.isInteger(n)) {
         return { msg: 'Expiry must be a whole number of days.', target: 'days' };
