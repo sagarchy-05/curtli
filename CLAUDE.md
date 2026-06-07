@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**curtli** — a URL shortener, deployed at https://curtli.com. Spring Boot 3.3 / Java 21 backend, vanilla-JS frontend (no build step), PostgreSQL source of truth, Redis for cache + rate limiting + async event stream. Hosted on AWS ECS Fargate fronted by Cloudflare.
+**curtli** — a URL shortener, deployed at https://curtli.com. Spring Boot 3.3 / Java 21 backend, vanilla-JS frontend (no build step), PostgreSQL source of truth, Redis for cache + rate limiting + async event stream. Hosted on a single AWS EC2 t4g.small (Graviton/ARM) running `docker compose`, fronted by Cloudflare.
 
 `README.md` carries the architecture story (click pipeline, fail-open patterns, deployment topology). Read it before refactoring — most "weird" choices have a justified reason.
 
@@ -39,22 +39,33 @@ docker compose logs -f app # tail app logs
 ./mvnw spring-boot:run                 # run locally (env vars must be set)
 ```
 
-### AWS deploy cycle
+### Production deploy
+
+The host is EC2 `i-097d9f76f778fc73a` in `ap-south-2`, running AL2023 ARM64. Access is via SSM Session Manager — port 22 is not exposed. The repo lives at `/opt/curtli`.
 
 ```bash
-docker build --platform linux/amd64 -t curtli:latest .   # IMPORTANT: --platform amd64 (Fargate)
-docker tag curtli:latest 818416605816.dkr.ecr.ap-south-2.amazonaws.com/curtli:latest
-docker push 818416605816.dkr.ecr.ap-south-2.amazonaws.com/curtli:latest
+# Open a session on the host (from your local machine, AWS CLI installed)
+aws ssm start-session --region ap-south-2 --target i-097d9f76f778fc73a
 
-# Bounce the running task; Fargate pulls fresh on each run-task. The Lambda
-# at cf-origin-updater handles Cloudflare DNS automatically on task replacement.
-aws ecs stop-task --region ap-south-2 --cluster curtli --task <task-arn>
-aws ecs run-task  --region ap-south-2 --cluster curtli --task-definition curtli  \
-  --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[...],securityGroups=[...],assignPublicIp=ENABLED}"
+# Inside the session — pull and redeploy
+cd /opt/curtli
+sudo git pull
+sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Verify
+sudo docker compose ps
+curl -fsS http://localhost:8080/actuator/health
 ```
 
-The `--platform linux/amd64` flag matters: without it on Apple Silicon / multi-arch builds, ECR ends up with manifest-list trees that complicate cleanup.
+No image registry round-trip — builds happen on the host. The t4g.small (ARM/Graviton) builds the image natively, so there's no `--platform` flag dance.
+
+`docker-compose.prod.yml` is an **override** layered on top of the base compose. It carries:
+- Memory limits per service (`app: 800m`, `postgres: 400m`, `redis: 200m`)
+- `JAVA_TOOL_OPTIONS=-Xms256m -Xmx640m` (the JVM auto-reads this — works around the exec-form ENTRYPOINT that ignores `JAVA_OPTS`)
+- Postgres `shared_buffers=128MB max_connections=50`
+- Redis `--maxmemory 100mb --maxmemory-policy noeviction` (deliberate — see [docker-compose.prod.yml](docker-compose.prod.yml) for the per-write-path failure mode breakdown)
+
+If you ever need to bootstrap a fresh host, `scripts/host-bootstrap.sh` is the script. It's idempotent — safe to re-run on an existing box.
 
 ## Things that LOOK like bugs but are deliberate
 
@@ -86,7 +97,7 @@ Spring's forwarded-headers handling updates `request.isSecure()` / `getRemoteAdd
 
 ## Configuration that lives in three places
 
-Every tunable env var must appear in **all three** of these for it to actually take effect when running Docker locally:
+Every tunable env var must appear in **all three** of these for it to actually take effect:
 
 1. `.env.example` — the documented default
 2. `docker-compose.yml` under `services.app.environment` — passes from `.env` into the container
@@ -94,7 +105,7 @@ Every tunable env var must appear in **all three** of these for it to actually t
 
 Forgetting #2 is the classic mistake — the value sits in `.env` but never reaches the JVM. There's a session-history of debugging this.
 
-For AWS, the **task definition** is a fourth place. Env vars set only in `docker-compose.yml` won't reach the deployed Fargate container; secrets must come from Secrets Manager via the task def's `secrets` block.
+In production, real values live in `/opt/curtli/.env` on the EC2 host — same shape as `.env.example`, just with actual secrets (DB password, `CURTLI_IP_HASH_SECRET`, etc.). The file is `chmod 600`-owned by root so only root can read it; `docker compose` reads it directly when invoked with sudo. Don't commit anything resembling a real value into the example file.
 
 ## Key invariants
 
@@ -126,6 +137,45 @@ PostgreSQL with **Flyway migrations** in `src/main/resources/db/migration/`. Sch
 | `rl:{ip}` | Rate-limit token bucket (Lua-script managed) |
 | `lock:click:{shortCode}:{ip}` | Click debouncer SETNX lock, 10s TTL |
 | `click_events` (stream) | Click event stream, consumer group `curtli-group` |
+
+## Production topology
+
+```
+            ─── https ───►  Cloudflare
+                            (TLS, CDN, DDoS, port 443 → origin :8080)
+                                   │
+                                   ▼  (SG: TCP 8080 from CF IPs only)
+                          EC2 t4g.small  (ap-south-2, Elastic IP)
+                          AL2023 ARM, 2 vCPU / 2 GB + 2 GB swap
+                          /opt/curtli — docker compose, 3 containers
+                              │
+                              ├─ curtli-app    (Java 21, 800m cap)
+                              ├─ curtli-db     (Postgres 16, 400m cap)
+                              └─ curtli-redis  (Redis 7,   200m cap)
+                                   │
+                                   ▼  (nightly via cron)
+                              S3: curtli-db-backups-*
+                              (gzipped pg_dump, 30-day lifecycle)
+```
+
+**SSM-only access.** Port 22 is closed. To get a shell: `aws ssm start-session --region ap-south-2 --target i-097d9f76f778fc73a`. The instance has an emergency key pair (`curtli-emergency.pem`) but the SG doesn't open 22 — if SSM ever breaks, temporarily add an SSH rule from your IP, fix the issue, remove the rule.
+
+**Cron jobs** (`/etc/cron.d/curtli`):
+- `02:00 UTC daily` — `scripts/pg-backup.sh` → S3 (gzipped `pg_dump`)
+- `04:00 UTC Sundays` — `scripts/cloudflare-sg-sync.sh` keeps the SG's port-8080 inbound rules in sync with Cloudflare's published IP list, IPv4 + IPv6
+
+**EC2 IAM role** (`curtli-ec2-role`):
+- `AmazonSSMManagedInstanceCore` (SSM access)
+- Inline `curtli-s3-backup-access` (`s3:Put/Get/Delete` on `curtli-db-backups-*/*`)
+- Inline `curtli-sg-management` (`ec2:Authorize/Revoke/DescribeSecurityGroups`)
+
+**`scripts/` overview**:
+| File | What |
+|---|---|
+| `host-bootstrap.sh` | First-time setup of a fresh EC2 (Docker, Compose, Buildx, swap, cron, dnf-automatic) |
+| `cloudflare-sg-sync.sh` | Diff-aware sync of SG port-8080 inbound against CF's IP list (idempotent, cron-safe) |
+| `pg-backup.sh` | Daily Postgres dump → S3 with SSE-S3 encryption |
+| `curtli.cron.example` | Template for `/etc/cron.d/curtli`; edit `BUCKET=` then `cp` to `/etc/cron.d/` |
 
 ## When in doubt
 

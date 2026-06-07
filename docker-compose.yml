@@ -17,6 +17,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    # Default json-file driver has no rotation — cap it explicitly so a
+    # log storm (deadlocks, repeated WAL warnings) can't fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ---------- Redis ----------
   redis:
@@ -34,6 +41,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    # Same rotation cap as postgres — defensive, redis at warning level
+    # barely speaks but a connection storm could change that.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ---------- Spring Boot App ----------
   app:
