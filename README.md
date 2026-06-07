@@ -149,28 +149,36 @@ Hold onto `id` client-side — that's the key to `GET /api/links/{id}/stats`.
 
 ## Production deployment
 
-Live at **[curtli.com](https://curtli.com)**, running on AWS with Cloudflare in front.
+Live at **[curtli.com](https://curtli.com)**, running on a single AWS EC2 t4g.small (Graviton/ARM) in ap-south-2, fronted by Cloudflare.
 
 ```
             ─── https ───►  Cloudflare
-                            (TLS, CDN, DDoS, port 80/443 → 8080)
+                            (TLS, CDN, DDoS, port 443 → origin :8080)
                                    │
-                                   ▼
-                          ECS Fargate task
-                          (0.25 vCPU · 1 GiB · public IP · port 8080)
-                              │            │
-                              ▼            ▼
-                       RDS Postgres   ElastiCache Redis
-                       (free tier)    (free tier)
+                                   ▼  (SG: TCP 8080 from Cloudflare IPs only)
+                          EC2 t4g.small  (Elastic IP)
+                          AL2023 · 2 vCPU · 2 GB + 2 GB swap
+                          /opt/curtli — docker compose · 3 containers
+                              │
+                              ├─ curtli-app    (Java 21, 800m memory cap)
+                              ├─ curtli-db     (Postgres 16, 400m cap)
+                              └─ curtli-redis  (Redis 7,   200m cap)
+                                   │
+                                   ▼  (nightly: pg_dump | gzip | aws s3 cp)
+                              S3 bucket (30-day lifecycle retention)
 ```
 
 A few decisions worth flagging:
 
-- **Cloudflare instead of an Application Load Balancer.** A single-task setup doesn't need L7 load balancing, and ALB is ~$16/mo plus an ACM cert dance. Cloudflare gives free TLS termination, a global CDN, DDoS protection, and translates public `:443` → origin `:8080` — at $0/mo. Total infra cost lands around **$4/mo** (the Fargate public IPv4 charge plus tiny Route 53 fees), with RDS and ElastiCache inside the free-tier window.
+- **Single EC2 instead of Fargate + managed RDS + ElastiCache.** Originally launched on the free-tier triplet, but the post-free-tier projection (~$40/mo) didn't fit a fixed promotional-credit runway. Consolidating onto one t4g.small (~$8/mo on a 1-yr Reserved Instance + EIP/EBS/S3) brings recurring spend back under $15/mo while keeping the same operational properties.
+- **Cloudflare instead of an Application Load Balancer.** A single-host setup doesn't need L7 load balancing, and ALB is ~$16/mo plus an ACM cert dance. Cloudflare gives free TLS termination, a global CDN, DDoS protection, and translates public `:443` → origin `:8080` at $0/mo.
+- **Cloudflare-only origin access.** The security group's port-8080 inbound is locked to Cloudflare's published IP ranges. A weekly cron (`scripts/cloudflare-sg-sync.sh`) does an idempotent diff against `cloudflare.com/ips-v4` and `ips-v6` to keep the list current. Port 22 is closed entirely; the host is administered via AWS SSM Session Manager.
 - **Hardened container, port 8080.** The image runs as a non-root `appuser`, which can't bind privileged ports `<1024`. Rather than re-privilege the container to bind `:80` directly, Cloudflare handles the port translation at the edge.
-- **Lettuce client timeout > Redis BLOCK duration.** The consumer issues `XREADGROUP ... BLOCK 500ms`, so the client-side Lettuce timeout must exceed that or every poll gets cancelled before Redis can respond. Configured via `SPRING_DATA_REDIS_TIMEOUT=5000`.
+- **JVM heap pinned, not percentage-based.** The Dockerfile's `MaxRAMPercentage=75.0` is overridden in `docker-compose.prod.yml` via `JAVA_TOOL_OPTIONS=-Xms256m -Xmx640m`. With a 2 GB host running three tenant containers, percentage-based heap sizing would have OOM-killed Postgres or Redis at startup.
+- **Redis `noeviction` policy.** Under memory pressure Redis refuses new writes rather than evicting existing keys. Each write path is already designed to fail safely (cache writes via try/catch+log, click-event publishes via try/catch+log, debouncer fails open), and rate-limit `HMSET` on an existing IP succeeds in-place without growing memory — so an attacker's bucket survives intact (fail-closed enforcement) while less-critical writes degrade silently.
+- **Lettuce client timeout > Redis BLOCK duration.** The consumer issues `XREADGROUP ... BLOCK 250ms`, so the client-side Lettuce timeout must exceed that or every poll gets cancelled before Redis can respond. Configured via `SPRING_DATA_REDIS_TIMEOUT=5000`.
 - **MKSTREAM on startup.** `ClickEventConsumer.initGroup()` checks if the stream exists and primes it with a one-shot `XADD` before creating the consumer group — the high-level Spring Data Redis API doesn't expose Redis's `MKSTREAM` flag directly.
-- **Cache-node endpoint, not Replication Group endpoint** for ElastiCache. Fargate's VPC DNS resolver was inconsistent on the `.ng.0001.aps2` Replication Group endpoint at launch; pointing at the stable specific-node endpoint (`curtli-redis-001…`) sidestepped it.
+- **Nightly Postgres backups to S3.** `pg_dump` via `docker exec`, gzipped, uploaded with SSE-S3 encryption. Retention is bucket-side via a lifecycle rule (delete > 30 days).
 
 ## Stack
 
