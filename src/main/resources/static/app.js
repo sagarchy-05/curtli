@@ -237,11 +237,9 @@
       // Always-array endpoint – single or bulk are the same call now.
       const { successful, failed } = await shortenAll(payload);
 
-      // Render the "Just shortened" cards (failures listed first so they
-      // can't be missed beneath a wall of successes).
-      renderResults(successful, failed);
+      renderResults(successful);
 
-      // Persist successes to history (now including id for stats lookup)
+      // Persist successes to history
       successful.forEach(s => addToHistory({
         id:        s.id,
         shortCode: s.shortCode,
@@ -251,26 +249,29 @@
       }));
       renderHistory();
 
-      // Reset form: remove all rows but the first, clear inputs. Defaults
-      // match a fresh template row — permanent checked, days disabled+empty.
-      Array.from($rows.querySelectorAll('.row')).forEach((r, i) => {
-        if (i === 0) {
-          r.querySelector('.input-url').value = '';
-          r.querySelector('.input-alias').value = '';
-          const $days  = r.querySelector('.input-days');
-          const $check = r.querySelector('.check-input');
-          $days.value = '';
-          $check.checked = true;
-          $days.disabled = true;
-          clearRowError(r);
+      // For each row submitted, if it failed, show error; if succeeded, remove.
+      for (const row of nonEmpty) {
+        const failedMatch = failed.find(f => f.longUrl === row.longUrl && f.attemptedAlias === row.customAlias);
+        if (failedMatch) {
+          let target = 'url';
+          if (/alias/i.test(failedMatch.errorMessage)) target = 'alias';
+          else if (/expires?|days|expiry/i.test(failedMatch.errorMessage)) target = 'days';
+          setRowError(row.rowEl, failedMatch.errorMessage, target);
         } else {
-          r.remove();
+          // Succeeded
+          row.rowEl.remove();
         }
-      });
+      }
+
+      // If all succeeded, the form is empty, so we add a fresh blank row.
+      if ($rows.children.length === 0) {
+        addRow();
+      }
+
       updateRowChrome();
 
       // Smooth-scroll the results into view if anything was returned.
-      if (successful.length > 0 || failed.length > 0) {
+      if (successful.length > 0) {
         requestAnimationFrame(() => {
           $resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
@@ -344,14 +345,10 @@
 
   // ----- Result rendering ---------------------------------------
 
-  function renderResults(successful, failed) {
+  function renderResults(successful) {
     $results.innerHTML = '';
 
-    // Failures first — they need user attention; successes also land in "Your links".
-    const items = [
-      ...failed.map(f => ({ kind: 'failure', data: f })),
-      ...successful.map(s => ({ kind: 'success', data: s })),
-    ];
+    const items = successful.map(s => ({ kind: 'success', data: s }));
 
     if (items.length === 0) {
       $resultsSection.classList.add('hidden');
@@ -359,9 +356,7 @@
     }
 
     items.forEach((item, i) => {
-      const node = item.kind === 'success'
-          ? renderSuccess(item.data)
-          : renderFailure(item.data);
+      const node = renderSuccess(item.data);
       node.style.animationDelay = `${i * 50}ms`;
       $results.appendChild(node);
     });
@@ -379,22 +374,6 @@
     $short.href = data.shortUrl;             // clicking opens in new tab
     $long.textContent = data.longUrl;
     $copy.addEventListener('click', () => copyToClipboard(data.shortUrl, $copy));
-
-    return node;
-  }
-
-  function renderFailure(data) {
-    const node = tplFailure.content.firstElementChild.cloneNode(true);
-    node.querySelector('[data-long]').textContent  = data.longUrl || '(no URL)';
-    node.querySelector('[data-error]').textContent = data.errorMessage || 'Unknown error';
-
-    // If the user tried a custom alias, show it — gives context for
-    // "Alias already taken" / "Invalid alias format" errors.
-    if (data.attemptedAlias) {
-      const $alias = node.querySelector('[data-alias]');
-      $alias.textContent = `Tried alias: ${data.attemptedAlias}`;
-      $alias.hidden = false;
-    }
 
     return node;
   }
@@ -473,8 +452,9 @@
     // subtitle shows the long URL it points to.
     $modalCode.textContent = stripProtocol(item.shortUrl);
     $modalLong.textContent = item.longUrl;
-    $modalTotal.textContent = '…';
-    $modalActive.textContent = '…';
+    const dotsHtml = '<div class="stat-dots"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></div>';
+    $modalTotal.innerHTML = dotsHtml;
+    $modalActive.innerHTML = dotsHtml;
     $modalChart.innerHTML = '';
     $modalEmpty.hidden = true;
     $modalError.hidden = true;

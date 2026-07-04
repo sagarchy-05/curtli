@@ -31,9 +31,8 @@ public interface ClickStatRepository extends JpaRepository<ClickStat, Long> {
     );
 
     /**
-     * Most recent hour buckets for a link, newest first.
-     * Pageable controls how many we return — service caps at 24 (last 24 hours).
+     * Most recent hour buckets for a link, newest first, filtered by time.
      */
-    @Query("SELECT cs FROM ClickStat cs WHERE cs.link.id = :linkId ORDER BY cs.bucketHour DESC")
-    List<ClickStat> findRecentByLinkId(@Param("linkId") Long linkId, Pageable pageable);
+    @Query("SELECT cs FROM ClickStat cs WHERE cs.link.id = :linkId AND cs.bucketHour >= :since ORDER BY cs.bucketHour DESC")
+    List<ClickStat> findRecentByLinkIdSince(@Param("linkId") Long linkId, @Param("since") OffsetDateTime since);
 }
