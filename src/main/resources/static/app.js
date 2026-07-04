@@ -481,7 +481,7 @@
     // Only hours with clicks
     const hourly = (stats.hourly ?? [])
         .filter(h => Number(h.clicks) > 0)
-        .sort((a, b) => new Date(a.hour) - new Date(b.hour));
+        .sort((a, b) => new Date(b.hour) - new Date(a.hour));
 
     $modalActive.textContent = String(hourly.length);
 
