@@ -483,7 +483,8 @@
         .filter(h => Number(h.clicks) > 0)
         .sort((a, b) => new Date(b.hour) - new Date(a.hour));
 
-    $modalActive.textContent = String(hourly.length);
+    const clicks24h = hourly.reduce((sum, h) => sum + Number(h.clicks), 0);
+    $modalActive.textContent = formatNumber(clicks24h);
 
     $modalChart.innerHTML = '';
 
