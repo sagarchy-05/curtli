@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import jakarta.annotation.PostConstruct;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -22,13 +25,37 @@ public class ResolverService {
     private final StringRedisTemplate redis;
 
     @Value("${curtli.cache-ttl-seconds}") private long cacheTtl;
+    @Value("${curtli.local-cache-ttl-seconds:30}") private long localCacheTtl;
+    
+    private Cache<String, String> localCache;
+
+    @PostConstruct
+    public void init() {
+        localCache = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofSeconds(localCacheTtl))
+                .maximumSize(10_000)
+                .build();
+    }
 
     @Transactional(readOnly = true)
     public String resolve(String shortCode) {
-        // Try cache first
-        String cached = redis.opsForValue().get(cacheKey(shortCode));
-        if (cached != null) {
-            return cached;
+        // Try L1 local cache first
+        String localCached = localCache.getIfPresent(cacheKey(shortCode));
+        if (localCached != null) {
+            return localCached;
+        }
+
+        // Try Redis cache
+        String redisCached = null;
+        try {
+            redisCached = redis.opsForValue().get(cacheKey(shortCode));
+        } catch (Exception e) {
+            log.warn("Redis read failed for code={}: {}", shortCode, e.getMessage());
+        }
+
+        if (redisCached != null) {
+            localCache.put(cacheKey(shortCode), redisCached);
+            return redisCached;
         }
 
         // Fallback to DB
@@ -40,6 +67,7 @@ public class ResolverService {
         }
 
         cachePut(shortCode, link.getLongUrl(), link.getExpiresAt());
+        localCache.put(cacheKey(shortCode), link.getLongUrl());
         return link.getLongUrl();
     }
 
